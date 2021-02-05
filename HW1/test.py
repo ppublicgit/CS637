@@ -1,3 +1,4 @@
+import numpy as np
 import mlp
 
 
@@ -10,3 +11,5 @@ outputs = np.zeros((5, 10))
 breakpoint()
 
 a.train(inputs, outputs)
+
+a.hidden_layers

@@ -29,15 +29,13 @@ class MLP():
 
         self.init_weight_funcs  =  {"random" : lambda x, y : np.zeros(((x+1) * y), dtype=float)}
 
-        self._check_valid_attributes()
-
         if self.shape is not None:
             self._setup_architecture()
 
         return
 
 
-    def _check_valid_attributes(self):
+    def _check_valid_attributes(self, data_size):
         if self.activation not in self.act_funcs.keys():
             raise ValueError((f"Invalid activation passed : {self.activation}. "
                               "Activation must be one of {self.act_funcs.keys}"))
@@ -99,7 +97,7 @@ class MLP():
         return np.concatenate(bias, inputs)
 
 
-    def forward(inputs, outputs, **kwargs):
+    def train(self, inputs, outputs, **kwargs):
 
         self.shape      = kwargs.get("shape", self.shape)
         self.activation = kwargs.get("activation", self.sigmoid)
@@ -108,9 +106,10 @@ class MLP():
         self.weight_init = kwargs.get("weight_init", self.weight_init)
         self.batch_size  = kwargs.get("batch_size", self.batch_size)
 
-        self._check_valid_attributes()
+        self._check_valid_data(inputs, outputs)
 
-        self._check_valid_data()
+        self._check_valid_attributes(inputs.shape[1])
+
 
         inputs_bias = self._add_bias(inputs)
 
