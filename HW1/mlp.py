@@ -11,6 +11,7 @@ class MLP():
         self.eta                = kwargs.get("eta", 0.0001)
         self.weight_init        = kwargs.get("weight_init", "random")
         self.batch_size         = kwargs.get("batch_size", 25)
+        self.loss               = kwargs.get("loss", "mse")
 
         self.weights            = []
         self.hidden_layers      = []
@@ -27,7 +28,10 @@ class MLP():
                                    "step" : lambda x : 0
                                    }
 
-        self.init_weight_funcs  =  {"random" : lambda x, y : np.zeros(((x+1) * y), dtype=float)}
+        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1) * y))}
+
+        self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2)
+                                   }
 
         if self.shape is not None:
             self._setup_architecture()
@@ -85,7 +89,7 @@ class MLP():
 
         for i in range(len(self.shape)-2):
             self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[i], self.shape[i+1]))
-            self.hidden_layers.append(np.zeros(self.shape[i+1], dtype=float))
+            self.hidden_layers.append(None)#append(np.zeros(self.shape[i+1], dtype=float))
 
             self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[-2], self.shape[-1]))
 
@@ -111,29 +115,42 @@ class MLP():
         self._check_valid_attributes(inputs.shape[0])
 
 
-        inputs_bias = self._add_bias(inputs)
+
 
         breakpoint()
         batched = 0
         while batched < len(inputs):
             batched_next = batched + self.batch_size
-            batch_in = inputs_bias[batched:batched_next]
+            batch_in = inputs[batched:batched_next]
             batch_out = outputs[batched:batched_next]
-            self._forward(batch_in, batch_out)
+            batch_yhat = self._forward(batch_in, batch_out)
+            self._backward(batch_yhat, outputs)
             batched = batched_next
 
         return
 
 
-    def _forward(self, inputs, ouptuts):
-        next_in = weights
-        for i in range(len(weights)):
-            next_in = next_in.dot(weights[i])
+    def _forward(self, inputs, _):
+        next_in = inputs
+        next_in = self._add_bias(next_in)
+        for level in range(len(self.shape) - 1):
+            breakpoint()
+            weights = self.weights[level].reshape(next_in.shape[1], self.shape[level+1])
+            if level != len(self.shape)- 2:
+                self.hidden_layers[level] = next_in.dot(weights)
+                next_in = self.hidden_layers[level]
+                next_in = self._add_bias(self.hidden_layers[level])
+            else:
+                outputs = next_in.dot(weights)
+
+        return outputs
+
+    def _backward(yhat, y):
+        loss = self.loss_fn[self.loss](yhat, y)
 
 
-    def _backward(inputs, outputs):
         return
 
 
-    def predict(self, inputs, outputs):
+    def predict(self, inputs):
         return
