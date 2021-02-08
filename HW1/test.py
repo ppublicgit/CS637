@@ -54,4 +54,12 @@ with open("iris.csv", "r") as f:
 
 breakpoint()
 
-nn.train(inp, out)
+indices = [*range(len(inp))]
+
+np.random.seed(42)
+np.random.shuffle(indices)
+
+in_shuffled = inp[indices]
+out_shuffled = out[indices]
+
+nn.train(in_shuffled, out_shuffled)
