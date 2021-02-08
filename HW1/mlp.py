@@ -10,7 +10,7 @@ class MLP():
         self.hidden_activation  = kwargs.get("hidden_activation", "sigmoid")
         self.eta                = kwargs.get("eta", 0.0001)
         self.weight_init        = kwargs.get("weight_init", "random")
-        self.batch_size         = kwargs.get("batch_size", None)
+        self.batch_size         = kwargs.get("batch_size", 25)
 
         self.weights            = []
         self.hidden_layers      = []
@@ -48,7 +48,7 @@ class MLP():
             raise ValueError((f"Invalid weight init function : {self.weight_init}."
                               " Must be one of {self.init_weight_funcs.keys()"))
 
-        if not isinstance(self.batch_size, int) or batch_size <=0 or batch_size > train_size:
+        if not isinstance(self.batch_size, int) or self.batch_size <=0 or self.batch_size > data_size:
             raise ValueError((f"Batch size must be an integer, that is > 0 and <= total data size"
                               f". Batch size was set to {self.batch_size} and data size is {data_size}"))
 
@@ -67,12 +67,12 @@ class MLP():
             raise ValueError((f"Inputs and outputs must be 2-d numpy array. "
                               "Input shpae is {inputs.shape} and outputs shape is {outputs.shape}"))
 
-        if inputs.shape[0] != self.shape[0] or outputs.shape[0] != self.shape[-1]:
+        if inputs.shape[1] != self.shape[0] or outputs.shape[1] != self.shape[-1]:
             raise ValueError(("Size of either input or output does not much architcture shape. "
-                              f"Input has size {inputs.shape[0]}, outputs has size {ouptuts.shape[0]} "
-                              "and architecture shape is {self.shape}"))
+                              f"Input has size {inputs.shape[0]}, outputs has size {outputs.shape[0]} "
+                              f"and architecture shape is {self.shape}"))
 
-        if inputs.shape[1] != outputs.shape[1]:
+        if inputs.shape[0] != outputs.shape[0]:
             raise ValueError(("The number of batched inputs does not match the number of batched outputs."
                               f" Input batch size is {inputs.shape[1]} and output batch size is {outputs.shape[1]}"))
 
@@ -92,15 +92,15 @@ class MLP():
         return
 
 
-    def _add_bias(inputs):
-        bias = np.ones((1, inputs.shape[1]), dtype=float)
-        return np.concatenate(bias, inputs)
+    def _add_bias(self, inputs):
+        bias = np.ones((inputs.shape[0], 1), dtype=float)
+        return np.concatenate((bias, inputs), axis=1)
 
 
     def train(self, inputs, outputs, **kwargs):
 
         self.shape      = kwargs.get("shape", self.shape)
-        self.activation = kwargs.get("activation", self.sigmoid)
+        self.activation = kwargs.get("activation", self.activation)
         self.hidden_activation = kwargs.get("hidden_activation", self.hidden_activation)
         self.eta        = kwargs.get("eta", self.eta)
         self.weight_init = kwargs.get("weight_init", self.weight_init)
@@ -108,19 +108,30 @@ class MLP():
 
         self._check_valid_data(inputs, outputs)
 
-        self._check_valid_attributes(inputs.shape[1])
+        self._check_valid_attributes(inputs.shape[0])
 
 
         inputs_bias = self._add_bias(inputs)
 
-
-
-
+        breakpoint()
+        batched = 0
+        while batched < len(inputs):
+            batched_next = batched + self.batch_size
+            batch_in = inputs_bias[batched:batched_next]
+            batch_out = outputs[batched:batched_next]
+            self._forward(batch_in, batch_out)
+            batched = batched_next
 
         return
 
 
-    def backward(inputs, outputs):
+    def _forward(self, inputs, ouptuts):
+        next_in = weights
+        for i in range(len(weights)):
+            next_in = next_in.dot(weights[i])
+
+
+    def _backward(inputs, outputs):
         return
 
 
