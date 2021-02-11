@@ -28,7 +28,7 @@ class MLP():
                                    "step" : lambda x : 0
                                    }
 
-        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1) * y))}
+        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y))}
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2)
                                    }
@@ -124,7 +124,7 @@ class MLP():
             batch_in = inputs[batched:batched_next]
             batch_out = outputs[batched:batched_next]
             batch_yhat = self._forward(batch_in, batch_out)
-            self._backward(batch_yhat, outputs)
+            self._backward(batch_yhat, batch_out)
             batched = batched_next
 
         return
@@ -134,20 +134,37 @@ class MLP():
         next_in = inputs
         next_in = self._add_bias(next_in)
         for level in range(len(self.shape) - 1):
-            breakpoint()
             weights = self.weights[level].reshape(next_in.shape[1], self.shape[level+1])
             if level != len(self.shape)- 2:
                 self.hidden_layers[level] = next_in.dot(weights)
                 next_in = self.hidden_layers[level]
                 next_in = self._add_bias(self.hidden_layers[level])
             else:
-                outputs = next_in.dot(weights)
+                outputs = self._classify(next_in.dot(weights))
 
         return outputs
 
-    def _backward(yhat, y):
-        loss = self.loss_fn[self.loss](yhat, y)
 
+    def _classify(self, arr):
+        out = np.zeros_like(arr)
+        for i in range(len(arr)):
+            cmax = arr[i,0]
+            imax = 0
+            for j in range(len(arr[i])):
+                if arr[i, j] > cmax:
+                    cmax = arr[i, j]
+                    imax = j
+            out[i, imax] = 1
+
+        return out
+
+    def _backward(self, yhat, y):
+        breakpoint()
+        #loss = self.loss_fn[self.loss](yhat, y)
+        dldy = yhat - y
+        for level in range(-1, -len(self.shape)+1, -1):
+            dldw = 1
+            self.weights[level] = self.weights[level] - self.eta * dldw
 
         return
 
