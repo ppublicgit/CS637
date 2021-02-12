@@ -21,23 +21,25 @@ class MLP():
 
 
         self.act_funcs          = {"sigmoid": lambda x : 1/(1+np.exp(-x)),
-                                   "relu"   : lambda x: 0 if x<=0 else x,
+                                   "relu"   : lambda x: self._relu(x, False),
+                                   "softmax" : lambda x : 1
                                    }
 
         self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x),
-                                   "relu" : lambda x : 0 if x<=0 else 1,
+                                   "relu" : lambda x : self._relu(x, True),
+                                   "softmax" : lambda x: self._soft_max(x)
                                    }
 
         self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 1, ((x+1), y)),
                                     "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2),
-                                   "softmax" : lambda yhat, y : self._soft_max(yhat, y),
+                                   "cross-entropy" : lambda yhat, y : self._cross_entropy(yhat, y),
                                    "hinge" : lambda yhat, y : 1
                                    }
 
         self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
-                                   "softmax" : lambda  yhat, y : 1,
+                                   "cross-entropy" : lambda  yhat, y : 1,
                                    "hinge" : lambda yhat, y : 1
                                    }
 
@@ -46,7 +48,22 @@ class MLP():
         return
 
 
-    def _soft_max(self, yhat, y):
+    def _relu(self, arr, deriv=False):
+        ret = np.zeros_like(arr, dtype=float)
+        for i in range(arr.shape[0]):
+            for j in range(arr.shape[1]):
+                if arr[i,j] > 0 and deriv:
+                    ret[i,j] = 1
+                elif arr[i, j] > 0:
+                    ret[i,j] = arr[i,j]
+        return ret
+
+
+    def _soft_max(self, x):
+        normalize = 1
+
+
+    def _cross_entropy(self, yhat, y):
         #normalize = np.sum(np.exp(x).T, axis=1).reshape(1, np.shape(x)[1])
         loss = 0
         for i in range(y.shape[1]):
@@ -204,8 +221,9 @@ class MLP():
             else:
                 #outputs = self._classify(weights.dot(next_in))
                 outputs = weights.dot(next_in)
+                out_act = self.act_funcs[self.activation](outputs)
 
-        return outputs
+        return out_act
 
 
     def _classify(self, arr):
