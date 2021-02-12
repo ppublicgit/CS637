@@ -88,17 +88,17 @@ class MLP():
                               "automatically added) and the last is the size of the output"))
 
         for i in range(len(self.shape)-2):
-            self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[i], self.shape[i+1]))
+            self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[i], self.shape[i+1]).T)
             self.hidden_layers.append(None)#append(np.zeros(self.shape[i+1], dtype=float))
 
-            self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[-2], self.shape[-1]))
+        self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[-2], self.shape[-1]).T)
 
         return
 
 
     def _add_bias(self, inputs):
-        bias = np.ones((inputs.shape[0], 1), dtype=float)
-        return np.concatenate((bias, inputs), axis=1)
+        bias = np.ones((1, inputs.shape[1]), dtype=float)
+        return np.concatenate((bias, inputs), axis=0)
 
 
     def train(self, inputs, outputs, **kwargs):
@@ -114,15 +114,14 @@ class MLP():
 
         self._check_valid_attributes(inputs.shape[0])
 
+        inputs_T = inputs.T
+        outputs_T = outputs.T
 
-
-
-        breakpoint()
         batched = 0
         while batched < len(inputs):
             batched_next = batched + self.batch_size
-            batch_in = inputs[batched:batched_next]
-            batch_out = outputs[batched:batched_next]
+            batch_in = inputs_T[:, batched:batched_next]
+            batch_out = outputs_T[:, batched:batched_next]
             batch_yhat = self._forward(batch_in, batch_out)
             self._backward(batch_yhat, batch_out)
             batched = batched_next
@@ -134,13 +133,14 @@ class MLP():
         next_in = inputs
         next_in = self._add_bias(next_in)
         for level in range(len(self.shape) - 1):
-            weights = self.weights[level].reshape(next_in.shape[1], self.shape[level+1])
+            weights = self.weights[level]#.reshape(next_in.shape[1], self.shape[level+1])
             if level != len(self.shape)- 2:
-                self.hidden_layers[level] = next_in.dot(weights)
+                self.hidden_layers[level] = weights.dot(next_in)
                 next_in = self.hidden_layers[level]
                 next_in = self._add_bias(self.hidden_layers[level])
             else:
-                outputs = self._classify(next_in.dot(weights))
+                #outputs = self._classify(weights.dot(next_in))
+                outputs = weights.dot(next_in)
 
         return outputs
 
