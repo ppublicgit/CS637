@@ -202,15 +202,14 @@ class MLP():
 
     def _classify(self, arr):
         out = np.zeros_like(arr)
-        for i in range(len(arr)):
-            cmax = arr[i,0]
+        for j in range(arr.shape[1]):
+            cmax = arr[0, j]
             imax = 0
-            for j in range(len(arr[i])):
+            for i in range(arr.shape[0]):
                 if arr[i, j] > cmax:
                     cmax = arr[i, j]
-                    imax = j
-            out[i, imax] = 1
-
+                    imax = i
+            out[imax, j] = 1
         return out
 
     def _backward(self, yhat, y, inputs):
@@ -260,5 +259,19 @@ class MLP():
         return
 
 
-    def predict(self, inputs):
-        return
+    def predict(self, inputs, outputs):
+        predictions = np.zeros_like(outputs)
+        for i in range(outputs.shape[0]):
+            predict = self._classify(self._forward(inputs[i].reshape(inputs.shape[1], 1)))
+            predictions[i, :] = predict.T
+        return predictions
+
+
+    def score(self, predictions, targets):
+        correct = 0
+        for i in range(predictions.shape[0]):
+            if any(predictions[i] != targets[i]):
+                continue
+            correct += 1
+
+        return correct/predictions.shape[0]
