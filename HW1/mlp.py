@@ -18,18 +18,18 @@ class MLP():
         self.hidden_layers_act  = []
 
 
-        self.act_funcs          = {"sigmoid": lambda x: 1/(1+np.exp(-x)),
+        self.act_funcs          = {"sigmoid": lambda x : 1/(1+np.exp(-x)),
                                    #"relu"   : lambda x: 0 if x<=0 else x,
                                    #"step"   : lambda x: 1 if x>0.5 else 0
                                    }
 
-        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(self.act_funcs["sigmoid"](x), \
-                                   (1-self.act_funcs["sigmoid"](x)))
+        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x)#"sigmoid" : lambda x : np.multiply(self.act_funcs["sigmoid"](x), \
+                                   #(1-self.act_funcs["sigmoid"](x)))
                                    #"relu" : lambda x : 0 if x<=0 else 1,
                                    #"step" : lambda x : 0
                                    }
 
-        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y))
+        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y)),
                                     "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2)
