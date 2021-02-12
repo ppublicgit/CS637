@@ -151,7 +151,7 @@ class MLP():
             batch_in = inputs_T[:, batched:batched_next]
             batch_out = outputs_T[:, batched:batched_next]
             batch_yhat = self._forward(batch_in, batch_out)
-            self._backward(batch_yhat, batch_out)
+            self._backward(batch_yhat, batch_out, batch_in)
             batched = batched_next
 
         return
@@ -187,13 +187,51 @@ class MLP():
 
         return out
 
-    def _backward(self, yhat, y):
-        breakpoint()
+    def _backward(self, yhat, y, inputs):
         #loss = self.loss_fn[self.loss](yhat, y)
-        dldy = yhat - y
-        for level in range(-1, -len(self.shape)+1, -1):
-            dldw = 1
+        dldy = self.loss_fn_derivs[self.loss](yhat, y)
+        if len(self.hidden_layers) == 0:
+            next_in = self._add_bias(inputs)
+            dldwlast = dldy.dot(next_in.T)
+            self.weights[-1] = self.weights[-1] - self.eta * dldwlast
+            return
+
+        level = -1
+        next_in = self._add_bias(self.hidden_layers_act[level])
+        dldw = dldy.dot(next_in.T)
+
+        wprev = self.weights[level][:, 1:]
+        dado = self.act_funcs_derivs[self.hidden_activation[level]](
+            self.hidden_layers_act[level]
+        )
+        breakpoint()
+        #dadz = self._add_bias(dadz)
+        dlda = wprev.T.dot(dldy)
+        dldo = np.multiply(dlda, dado)
+
+        self.weights[level] = self.weights[level] - self.eta * dldw
+
+        level -= 1
+        #for level in range(-2, -len(self.shape)+1, -1):
+        while level != -len(self.shape) + 1:
+            next_in = self._add_bias(self.hidden_layers_act[level])
+            dldw = dldy.dot(next_in.T)
+
+            wprev = self.weights[level]
+            dado = self.act_funcs_derivs[self.hidden_activation[level]](
+                self.hidden_layers_act[level]
+            )
+            dlda = wprev.T.dot(dldy)
+            dldo = np.multiply(dlda, dado)
+
             self.weights[level] = self.weights[level] - self.eta * dldw
+
+            level -= 1
+
+        breakpoint()
+        next_in = self._add_bias(inputs)
+        dldw = dldo.dot(next_in.T)
+        self.weights[level] = self.weights[level] - self.eta * dldw
 
         return
 
