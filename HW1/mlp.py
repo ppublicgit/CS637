@@ -22,12 +22,12 @@ class MLP():
 
         self.act_funcs          = {"sigmoid": lambda x : 1/(1+np.exp(-x)),
                                    "relu"   : lambda x: self._relu(x, False),
-                                   "softmax" : lambda x: x
+                                   "linear" : lambda x: x
                                    }
 
         self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x),
                                    "relu" : lambda x : self._relu(x, True),
-                                   "softmax" : lambda x: 1
+                                   "linear" : lambda x: 1
                                    }
 
         self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 1, ((x+1), y)),
@@ -35,12 +35,12 @@ class MLP():
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2),
                                    "softmax" : lambda yhat, y : self._softmax(yhat, y, False),
-                                   "hinge" : lambda yhat, y : 1
+                                   "hinge" : lambda yhat, y : self._hinge(yhat, y)
                                    }
 
         self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
                                    "softmax" : lambda  yhat, y : self._softmax(yhat, y, True),
-                                   "hinge" : lambda yhat, y : 1
+                                   "hinge" : lambda yhat, y : self._hinge_deriv(yhat, y)
                                    }
 
         self._setup_architecture()
@@ -79,14 +79,38 @@ class MLP():
                         ret[i, j] = -(1-np.exp(yhat[i, j])/summed_prob[j])
                     else:
                         ret[i, j] = np.exp(yhat[i, j])/ summed_prob[j]
-
         return ret
 
+
+    def _hinge(self, yhat, y):
+        ret = np.zeros(y.shape[1], dtype=float)
+        for j in range(y.shape[1]):
+            loss = 0
+            index = np.where(y[:, j] == 1)[0][0]
+            for i in range(y.shape[0]):
+                if i != index:
+                    loss += max(0, yhat[i, j] - yhat[index, j] + 1)
+            ret[j] = loss
+        return ret
+
+
+    def _hinge_deriv(self, yhat, y):
+        dldyhat = np.zeros_like(yhat, dtype=float)
+        for j in range(y.shape[1]):
+            count = 0
+            index = np.where(y[:, j] == 1)[0][0]
+            for i in range(y.shape[0]):
+                if i != index:
+                    if yhat[i, j] - yhat[index, j] + 1 > 0:
+                        dldyhat[i, j] = 1
+                        count += 1
+            dldyhat[index, j] = -count
+        return dldyhat
 
     def _check_valid_attributes(self, data_size):
         if self.activation not in self.act_funcs.keys():
             raise ValueError((f"Invalid activation passed : {self.activation}. "
-                              f"Activation must be one of {self.act_funcs.keys}"))
+                              f"Activation must be one of {self.act_funcs.keys()}"))
 
         ha_valid = [ha in self.act_funcs.keys() and ha != "softmax" for ha in self.hidden_activation]
         if not all(ha_valid):
@@ -110,9 +134,10 @@ class MLP():
             raise ValueError(("Invalid progress_epoch set. Progress epoch must be an "
                               "integer greater than or equal to 0. Not {self.progress_epoch"))
 
-        if self.loss == "softmax" and self.activation != "softmax":
-            print("Setting output activation to softmax since softmax loss was chosen.")
-            self.activation = "softmax"
+        if (self.loss == "softmax" or self.loss == "hinge") \
+           and self.activation != "linear":
+            print("Setting output activation to linear since softmax or hinge loss was chosen.")
+            self.activation = "linear"
 
     def _check_valid_data(self, inputs, outputs):
         try:
