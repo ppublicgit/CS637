@@ -19,17 +19,18 @@ class MLP():
 
 
         self.act_funcs          = {"sigmoid": lambda x: 1/(1+np.exp(-x)),
-                                   "relu"   : lambda x: 0 if x<=0 else x,
-                                   "step"   : lambda x: 1 if x>0.5 else 0
+                                   #"relu"   : lambda x: 0 if x<=0 else x,
+                                   #"step"   : lambda x: 1 if x>0.5 else 0
                                    }
 
-        self.act_funcs_derivs   = {"sigmoid" : lambda x : self.act_funcs["sigmoid"](x) * \
-                                   (1-self.act_funcs["sigmoid"](x)),
-                                   "relu" : lambda x : 0 if x<=0 else 1,
-                                   "step" : lambda x : 0
+        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(self.act_funcs["sigmoid"](x), \
+                                   (1-self.act_funcs["sigmoid"](x)))
+                                   #"relu" : lambda x : 0 if x<=0 else 1,
+                                   #"step" : lambda x : 0
                                    }
 
-        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y))}
+        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y))
+                                    "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2)
                                    }
@@ -107,7 +108,8 @@ class MLP():
 
 
     def _activate(self, level):
-        act_fn = self.act_funcs(self.hidden_activation[level])
+        act_fn = self.act_funcs[self.hidden_activation[level]]
+        return act_fn(self.hidden_layers[level])
 
 
     def _set_hidden_act(self, ha):
@@ -162,8 +164,9 @@ class MLP():
             weights = self.weights[level]#.reshape(next_in.shape[1], self.shape[level+1])
             if level != len(self.shape)- 2:
                 self.hidden_layers[level] = weights.dot(next_in)
-                next_in = self.hidden_layers[level]
-                next_in = self._add_bias(self.hidden_layers[level])
+                self.hidden_layers_act[level] = self._activate(level)
+                next_in = self.hidden_layers_act[level]
+                next_in = self._add_bias(self.hidden_layers_act[level])
             else:
                 #outputs = self._classify(weights.dot(next_in))
                 outputs = weights.dot(next_in)
