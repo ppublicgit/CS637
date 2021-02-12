@@ -47,7 +47,8 @@ class MLP():
             raise ValueError((f"Invalid activation passed : {self.activation}. "
                               "Activation must be one of {self.act_funcs.keys}"))
 
-        if self.hidden_activation not in self.act_funcs.keys():
+        ha_valid = [ha in self.act_funcs.keys() for ha in self.hidden_activation]
+        if not all(ha_valid):
             raise ValueError((f"Invalid hidden_activation passed : {self.hidden_activation}. "
                               "Activation must be one of {self.act_funcs.keys}"))
 
@@ -105,11 +106,32 @@ class MLP():
         return np.concatenate((bias, inputs), axis=0)
 
 
+    def _activate(self, level):
+        act_fn = self.act_funcs(self.hidden_activation[level])
+
+
+    def _set_hidden_act(self, ha):
+        if isinstance(ha, str):
+            self.hidden_activation = [ha] * (len(self.shape)-2)
+        elif len(ha) != len(self.shape) - 2:
+            raise ValueError(("Length of specified hidden activation functions ({len(ha)}). "
+                              f"Does not match number of hidden layers ({len(self.shape)-2}). "
+                              f"Either set hidden activation to a string to use the same "
+                              "activation function for each hidden layer, or set to a list of "
+                              "strings for the activation function of choice for each hidden "
+                              "layer."))
+        else:
+            self.hidden_activation = ha
+        return
+
+
     def train(self, inputs, outputs, **kwargs):
 
-        self.shape      = kwargs.get("shape", self.shape)
+        #self.shape      = kwargs.get("shape", self.shape)
         self.activation = kwargs.get("activation", self.activation)
-        self.hidden_activation = kwargs.get("hidden_activation", self.hidden_activation)
+        self._set_hidden_act(
+            kwargs.get("hidden_activation", self.hidden_activation)
+            )
         self.eta        = kwargs.get("eta", self.eta)
         self.weight_init = kwargs.get("weight_init", self.weight_init)
         self.batch_size  = kwargs.get("batch_size", self.batch_size)
