@@ -4,8 +4,8 @@ import numpy as np
 class MLP():
     """Multi Layer Perceptron"""
 
-    def __init__(self, **kwargs):
-        self.shape              = kwargs.get("shape", None)
+    def __init__(self, shape, **kwargs):
+        self.shape              = shape#kwargs.get("shape", None)
         self.activation         = kwargs.get("activation", "sigmoid")
         self.hidden_activation  = kwargs.get("hidden_activation", "sigmoid")
         self.eta                = kwargs.get("eta", 0.0001)
@@ -15,6 +15,7 @@ class MLP():
 
         self.weights            = []
         self.hidden_layers      = []
+        self.hidden_layers_act  = []
 
 
         self.act_funcs          = {"sigmoid": lambda x: 1/(1+np.exp(-x)),
@@ -33,8 +34,10 @@ class MLP():
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2)
                                    }
 
-        if self.shape is not None:
-            self._setup_architecture()
+        self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y
+                                   }
+
+        self._setup_architecture()
 
         return
 
@@ -90,6 +93,7 @@ class MLP():
         for i in range(len(self.shape)-2):
             self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[i], self.shape[i+1]).T)
             self.hidden_layers.append(None)#append(np.zeros(self.shape[i+1], dtype=float))
+            self.hidden_layers_act.append(None)
 
         self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[-2], self.shape[-1]).T)
 
