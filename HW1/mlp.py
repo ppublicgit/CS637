@@ -239,13 +239,13 @@ class MLP():
         #for level in range(-2, -len(self.shape)+1, -1):
         while level != -len(self.shape) + 1:
             next_in = self._add_bias(self.hidden_layers_act[level])
-            dldw = dldy.dot(next_in.T)
+            dldw = dldo.dot(next_in.T)
 
-            wprev = self.weights[level]
+            wprev = self.weights[level][:, 1:]
             dado = self.act_funcs_derivs[self.hidden_activation[level]](
                 self.hidden_layers_act[level]
             )
-            dlda = wprev.T.dot(dldy)
+            dlda = wprev.T.dot(dldo)
             dldo = np.multiply(dlda, dado)
 
             self.weights[level] = self.weights[level] - self.eta * dldw
