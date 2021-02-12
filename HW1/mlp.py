@@ -10,9 +10,10 @@ class MLP():
         self.hidden_activation  = kwargs.get("hidden_activation", "sigmoid")
         self.eta                = kwargs.get("eta", 0.0001)
         self.weight_init        = kwargs.get("weight_init", "random")
-        self.batch_size         = kwargs.get("batch_size", 25)
+        self.batch_size         = kwargs.get("batch_size", 50)
         self.loss               = kwargs.get("loss", "mse")
-        self.num_epochs         = kwargs.get("num_epochs", 1000)
+        self.num_epochs         = kwargs.get("num_epochs", 10000)
+        self.progress_epoch     = kwargs.get("progress_epoch", 1000)
 
         self.weights            = []
         self.hidden_layers      = []
@@ -81,6 +82,10 @@ class MLP():
                               " Set number of epochs to an integer greater than 0. "
                               f"num_epochs was set to : {self.num_epochs}"))
 
+        if not isinstance(self.progress_epoch, int) or self.progress_epoch < 1:
+            raise ValueError(("Invalid progress_epoch set. Progress epoch must be an "
+                              "integer greater than or equal to 0. Not {self.progress_epoch"))
+
     def _check_valid_data(self, inputs, outputs):
         try:
             inputs.shape[0]
@@ -101,8 +106,10 @@ class MLP():
                               f"and architecture shape is {self.shape}"))
 
         if inputs.shape[0] != outputs.shape[0]:
-            raise ValueError(("The number of batched inputs does not match the number of batched outputs."
-                              f" Input batch size is {inputs.shape[1]} and output batch size is {outputs.shape[1]}"))
+            raise ValueError(("The number of batched inputs does not match "
+                              "the number of batched outputs."
+                              f" Input batch size is {inputs.shape[1]} "
+                              f"and output batch size is {outputs.shape[1]}"))
 
     def _setup_architecture(self):
         if not isinstance(self.shape, tuple) and  len(self.shape) < 2:
@@ -157,6 +164,7 @@ class MLP():
         self.weight_init = kwargs.get("weight_init", self.weight_init)
         self.batch_size  = kwargs.get("batch_size", self.batch_size)
         self.num_epochs = kwargs.get("num_epochs", self.num_epochs)
+        self.progress_epoch = kwargs.get("progress_epoch", self.progress_epoch)
 
         self._check_valid_data(inputs, outputs)
 
@@ -175,10 +183,10 @@ class MLP():
                 batch_yhat = self._forward(batch_in)
                 self._backward(batch_yhat, batch_out, batch_in)
                 batched = batched_next
-            if (i+1) % 100 == 0:
+            if self.progress_epoch and (i+1) % self.progress_epoch == 0:
                     print(f"Epoch : {i-1}")
-                    loss = self.loss_fn[self.loss](batch_yhat, batch_out)
-                    print(f"Loss : {loss}")
+                    ave_loss = sum(self.loss_fn[self.loss](batch_yhat, batch_out))/self.batch_size
+                    print(f"Ave. Loss : {ave_loss}")
 
         return
 
