@@ -21,24 +21,24 @@ class MLP():
 
 
         self.act_funcs          = {"sigmoid": lambda x : 1/(1+np.exp(-x)),
-                                   #"relu"   : lambda x: 0 if x<=0 else x,
-                                   #"step"   : lambda x: 1 if x>0.5 else 0
+                                   "relu"   : lambda x: 0 if x<=0 else x,
                                    }
 
-        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x)
-                                   #"relu" : lambda x : 0 if x<=0 else 1,
-                                   #"step" : lambda x : 0
+        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x),
+                                   "relu" : lambda x : 0 if x<=0 else 1,
                                    }
 
-        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y)),
+        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 1, ((x+1), y)),
                                     "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2),
-                                   "softmax" : lambda yhat, y : self._soft_max(yhat, y)
+                                   "softmax" : lambda yhat, y : self._soft_max(yhat, y),
+                                   "hinge" : lambda yhat, y : 1
                                    }
 
         self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
-                                   "softmax" : lambda  yhat, y : 1
+                                   "softmax" : lambda  yhat, y : 1,
+                                   "hinge" : lambda yhat, y : 1
                                    }
 
         self._setup_architecture()
