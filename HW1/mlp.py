@@ -22,24 +22,24 @@ class MLP():
 
         self.act_funcs          = {"sigmoid": lambda x : 1/(1+np.exp(-x)),
                                    "relu"   : lambda x: self._relu(x, False),
-                                   "softmax" : lambda x : 1
+                                   "softmax" : lambda x: x
                                    }
 
         self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x),
                                    "relu" : lambda x : self._relu(x, True),
-                                   "softmax" : lambda x: self._soft_max(x)
+                                   "softmax" : lambda x: 1
                                    }
 
         self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 1, ((x+1), y)),
                                     "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
         self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2),
-                                   "cross-entropy" : lambda yhat, y : self._cross_entropy(yhat, y),
+                                   "softmax" : lambda yhat, y : self._softmax(yhat, y, False),
                                    "hinge" : lambda yhat, y : 1
                                    }
 
         self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
-                                   "cross-entropy" : lambda  yhat, y : 1,
+                                   "softmax" : lambda  yhat, y : self._softmax(yhat, y, True),
                                    "hinge" : lambda yhat, y : 1
                                    }
 
@@ -59,36 +59,43 @@ class MLP():
         return ret
 
 
-    def _soft_max(self, x):
-        normalize = 1
+    def _softmax(self, yhat, y, deriv=False):
+        #breakpoint()
+        summed_prob = np.sum(np.exp(yhat), axis=0)
+        if not deriv:
+            ret = np.zeros_like(summed_prob, dtype=float)
+        else:
+            ret = np.zeros_like(yhat, dtype=float)
+        for j in range(y.shape[1]):
+            for i in range(y.shape[0]):
+                if y[i, j] == 1:
+                    index = i
+                    break
+            if not deriv:
+                ret[j] = -np.log(np.exp(yhat[index, j])/ summed_prob[j])
+            else:
+                for i in range(y.shape[0]):
+                    if i == index:
+                        ret[i, j] = -(1-np.exp(yhat[i, j])/summed_prob[j])
+                    else:
+                        ret[i, j] = np.exp(yhat[i, j])/ summed_prob[j]
 
-
-    def _cross_entropy(self, yhat, y):
-        #normalize = np.sum(np.exp(x).T, axis=1).reshape(1, np.shape(x)[1])
-        loss = 0
-        for i in range(y.shape[1]):
-            normalize = np.sum(np.exp(yhat[:, i]))
-            norm_yhat = np.zeros(y.shape[0], dtype=float)
-            for j in range(y.shape[0]):
-                norm_yhat[j] = np.exp(yhat[j, i])/normalize
-            index = np.where(y[:, i] == 1)[0]
-            loss += -np.log(norm_yhat[index])
-        return loss/len(yhat)
+        return ret
 
 
     def _check_valid_attributes(self, data_size):
         if self.activation not in self.act_funcs.keys():
             raise ValueError((f"Invalid activation passed : {self.activation}. "
-                              "Activation must be one of {self.act_funcs.keys}"))
+                              f"Activation must be one of {self.act_funcs.keys}"))
 
-        ha_valid = [ha in self.act_funcs.keys() for ha in self.hidden_activation]
+        ha_valid = [ha in self.act_funcs.keys() and ha != "softmax" for ha in self.hidden_activation]
         if not all(ha_valid):
             raise ValueError((f"Invalid hidden_activation passed : {self.hidden_activation}. "
-                              "Activation must be one of {self.act_funcs.keys}"))
+                              f"Activation must be one of {self.act_funcs.keys}"))
 
         if self.weight_init not in self.init_weight_funcs.keys():
             raise ValueError((f"Invalid weight init function : {self.weight_init}."
-                              " Must be one of {self.init_weight_funcs.keys()"))
+                              f" Must be one of {self.init_weight_funcs.keys()}"))
 
         if not isinstance(self.batch_size, int) or self.batch_size <=0 or self.batch_size > data_size:
             raise ValueError((f"Batch size must be an integer, that is > 0 and <= total data size"
@@ -102,6 +109,10 @@ class MLP():
         if not isinstance(self.progress_epoch, int) or self.progress_epoch < 1:
             raise ValueError(("Invalid progress_epoch set. Progress epoch must be an "
                               "integer greater than or equal to 0. Not {self.progress_epoch"))
+
+        if self.loss == "softmax" and self.activation != "softmax":
+            print("Setting output activation to softmax since softmax loss was chosen.")
+            self.activation = "softmax"
 
     def _check_valid_data(self, inputs, outputs):
         try:
