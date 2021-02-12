@@ -159,6 +159,7 @@ class MLP():
         inputs_T = inputs.T
         outputs_T = outputs.T
 
+
         batched = 0
         while batched < len(inputs):
             if (batched+1) % 10 == 0:
