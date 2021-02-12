@@ -12,6 +12,7 @@ class MLP():
         self.weight_init        = kwargs.get("weight_init", "random")
         self.batch_size         = kwargs.get("batch_size", 25)
         self.loss               = kwargs.get("loss", "mse")
+        self.num_epochs         = kwargs.get("num_epochs", 1000)
 
         self.weights            = []
         self.hidden_layers      = []
@@ -36,7 +37,7 @@ class MLP():
                                    }
 
         self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
-                                   "softmax" : lambda  yhat, y :
+                                   "softmax" : lambda  yhat, y : 1
                                    }
 
         self._setup_architecture()
@@ -75,6 +76,10 @@ class MLP():
             raise ValueError((f"Batch size must be an integer, that is > 0 and <= total data size"
                               f". Batch size was set to {self.batch_size} and data size is {data_size}"))
 
+        if not isinstance(self.num_epochs, int) or self.num_epochs <= 0:
+            raise ValueError(("Invalid number of epochs set for training NN."
+                              " Set number of epochs to an integer greater than 0. "
+                              f"num_epochs was set to : {self.num_epochs}"))
 
     def _check_valid_data(self, inputs, outputs):
         try:
@@ -151,6 +156,7 @@ class MLP():
         self.eta        = kwargs.get("eta", self.eta)
         self.weight_init = kwargs.get("weight_init", self.weight_init)
         self.batch_size  = kwargs.get("batch_size", self.batch_size)
+        self.num_epochs = kwargs.get("num_epochs", self.num_epochs)
 
         self._check_valid_data(inputs, outputs)
 
@@ -160,23 +166,24 @@ class MLP():
         outputs_T = outputs.T
 
 
-        batched = 0
-        while batched < len(inputs):
-            if (batched+1) % 10 == 0:
-                print(f"Batch : {batched-1}")
-                loss = self.loss_fn[self.loss](batch_yhat, batch_out)
-                print(f"Loss : {loss}")
-            batched_next = batched + self.batch_size
-            batch_in = inputs_T[:, batched:batched_next]
-            batch_out = outputs_T[:, batched:batched_next]
-            batch_yhat = self._forward(batch_in, batch_out)
-            self._backward(batch_yhat, batch_out, batch_in)
-            batched = batched_next
+        for i in range(self.num_epochs):
+            batched = 0
+            while batched < len(inputs):
+                batched_next = batched + self.batch_size
+                batch_in = inputs_T[:, batched:batched_next]
+                batch_out = outputs_T[:, batched:batched_next]
+                batch_yhat = self._forward(batch_in)
+                self._backward(batch_yhat, batch_out, batch_in)
+                batched = batched_next
+            if (i+1) % 100 == 0:
+                    print(f"Epoch : {i-1}")
+                    loss = self.loss_fn[self.loss](batch_yhat, batch_out)
+                    print(f"Loss : {loss}")
 
         return
 
 
-    def _forward(self, inputs, _):
+    def _forward(self, inputs):
         next_in = inputs
         next_in = self._add_bias(next_in)
         for level in range(len(self.shape) - 1):
