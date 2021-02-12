@@ -8,7 +8,8 @@ iris_types = {"Setosa": 0,
               "Versicolor": 1
               }
 
-nn = mlp.MLP(shape=(4,2,3), batch_size=1)
+nn = mlp.MLP(shape=(4,2,3), batch_size=1, loss="softmax")
+
 
 #inputs = np.zeros((4,10))
 

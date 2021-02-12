@@ -23,8 +23,7 @@ class MLP():
                                    #"step"   : lambda x: 1 if x>0.5 else 0
                                    }
 
-        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x)#"sigmoid" : lambda x : np.multiply(self.act_funcs["sigmoid"](x), \
-                                   #(1-self.act_funcs["sigmoid"](x)))
+        self.act_funcs_derivs   = {"sigmoid" : lambda x : np.multiply(x, 1-x)
                                    #"relu" : lambda x : 0 if x<=0 else 1,
                                    #"step" : lambda x : 0
                                    }
@@ -32,15 +31,30 @@ class MLP():
         self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 0.01, ((x+1), y)),
                                     "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
-        self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2)
+        self.loss_fn            = {"mse" : lambda yhat, y : 0.5 * sum((yhat-y)**2),
+                                   "softmax" : lambda yhat, y : self._soft_max(yhat, y)
                                    }
 
-        self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y
+        self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
+                                   "softmax" : lambda  yhat, y :
                                    }
 
         self._setup_architecture()
 
         return
+
+
+    def _soft_max(self, yhat, y):
+        #normalize = np.sum(np.exp(x).T, axis=1).reshape(1, np.shape(x)[1])
+        loss = 0
+        for i in range(y.shape[1]):
+            normalize = np.sum(np.exp(yhat[:, i]))
+            norm_yhat = np.zeros(y.shape[0], dtype=float)
+            for j in range(y.shape[0]):
+                norm_yhat[j] = np.exp(yhat[j, i])/normalize
+            index = np.where(y[:, i] == 1)[0]
+            loss += -np.log(norm_yhat[index])
+        return loss/len(yhat)
 
 
     def _check_valid_attributes(self, data_size):
@@ -147,6 +161,10 @@ class MLP():
 
         batched = 0
         while batched < len(inputs):
+            if (batched+1) % 10 == 0:
+                print(f"Batch : {batched-1}")
+                loss = self.loss_fn[self.loss](batch_yhat, batch_out)
+                print(f"Loss : {loss}")
             batched_next = batched + self.batch_size
             batch_in = inputs_T[:, batched:batched_next]
             batch_out = outputs_T[:, batched:batched_next]
@@ -204,7 +222,6 @@ class MLP():
         dado = self.act_funcs_derivs[self.hidden_activation[level]](
             self.hidden_layers_act[level]
         )
-        breakpoint()
         #dadz = self._add_bias(dadz)
         dlda = wprev.T.dot(dldy)
         dldo = np.multiply(dlda, dado)
@@ -228,7 +245,6 @@ class MLP():
 
             level -= 1
 
-        breakpoint()
         next_in = self._add_bias(inputs)
         dldw = dldo.dot(next_in.T)
         self.weights[level] = self.weights[level] - self.eta * dldw
