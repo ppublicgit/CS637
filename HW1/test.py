@@ -8,17 +8,7 @@ iris_types = {"Setosa": 0,
               "Versicolor": 1
               }
 
-nn = mlp.MLP(shape=(4,2,3), batch_size=1)
-
-#inputs = np.zeros((4,10))
-
-#outputs = np.zeros((5, 10))
-
-#breakpoint()
-
-#a.train(inputs, outputs)
-
-#a.hidden_layers
+nn = mlp.MLP(shape=(4,3,5,3), batch_size=1, loss="mse", num_epochs=1000, eta=0.01)
 
 
 def get_outputs(op):
@@ -63,3 +53,9 @@ in_shuffled = inp[indices]
 out_shuffled = out[indices]
 
 nn.train(in_shuffled, out_shuffled)
+
+predictions = nn.predict(in_shuffled, out_shuffled)
+
+print(nn.score(predictions, out_shuffled))
+
+breakpoint()
