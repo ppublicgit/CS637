@@ -237,9 +237,9 @@ class MLP():
                 self._backward(batch_yhat, batch_out, batch_in)
                 batched = batched_next
             if self.progress_epoch and (i+1) % self.progress_epoch == 0:
-                    print(f"Epoch : {i-1}")
-                    ave_loss = sum(self.loss_fn[self.loss](batch_yhat, batch_out))/self.batch_size
-                    print(f"Ave. Loss : {ave_loss}")
+                print(f"Epoch : {i-1}")
+                ave_loss = sum(self.loss_fn[self.loss](batch_yhat, batch_out))/self.batch_size
+                print(f"Ave. Loss : {ave_loss}")
 
         return
 

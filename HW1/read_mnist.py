@@ -11,11 +11,11 @@ def read_labels(filename):
         nolab = int.from_bytes(nolab,'big')
         print("Num of labels is:", nolab)
         labels = [f.read(1) for i in range(nolab)]
-        labels = [int.from_bytes(label, 'big') for label in labels]
+        labels = np.array([int.from_bytes(label, 'big') for label in labels])
     return labels
 
 
-def read_images_from_file(filename):
+def read_images(filename):
     with open(filename,'rb') as f:
         magic = f.read(4)
         magic = int.from_bytes(magic,'big')
@@ -40,8 +40,9 @@ def read_images_from_file(filename):
                 cols = []
                 for c in range(nocol):
                     cols.append(int.from_bytes(f.read(1), 'big'))
-                rows.append(cols)
-            images.append(rows)
+                rows.append(np.array(cols))
+            images.append(np.array(rows))
+
     return images
 
 
@@ -49,3 +50,4 @@ def print_ascii_number(image):
     for row in image:
         for col in row:
             print('.' if col <= 127 else '#', end='')
+        print()
