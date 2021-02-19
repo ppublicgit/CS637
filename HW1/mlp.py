@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 
 class MLP():
@@ -14,6 +15,8 @@ class MLP():
         self.loss               = kwargs.get("loss", "mse")
         self.num_epochs         = kwargs.get("num_epochs", 10000)
         self.progress_epoch     = kwargs.get("progress_epoch", 1000)
+        self.track_epoch        = kwargs.get("track_epoch", False)
+        self.optimization       = kwargs.get("optimization", "basic")
 
         self.weights            = []
         self.hidden_layers      = []
@@ -41,6 +44,9 @@ class MLP():
         self.loss_fn_derivs     = {"mse" : lambda yhat, y : yhat - y,
                                    "softmax" : lambda  yhat, y : self._softmax(yhat, y, True),
                                    "hinge" : lambda yhat, y : self._hinge_deriv(yhat, y)
+                                   }
+
+        self.optimization_func  = {"basic" : lambda old, deriv, eta : old - eta * deriv
                                    }
 
         self._setup_architecture()
@@ -139,6 +145,9 @@ class MLP():
             print("Setting output activation to linear since softmax or hinge loss was chosen.")
             self.activation = "linear"
 
+        if self.optimization not in self.optimization_func.keys():
+            raise ValueError(f"Invalid optimaztion method set ({self.optimization}).")
+
     def _check_valid_data(self, inputs, outputs):
         try:
             inputs.shape[0]
@@ -163,6 +172,41 @@ class MLP():
                               "the number of batched outputs."
                               f" Input batch size is {inputs.shape[1]} "
                               f"and output batch size is {outputs.shape[1]}"))
+
+
+    def _check_valid_val_data(self, val_data):
+        if len(val_data) != 2:
+            raise ValueError((f"Size of val data is not 2. Must be an iterable of size 2 "
+                             f"with the first value a 2-d numpy array of inputs and the second"
+                              "value as a 2-d numpy array of outputs."))
+        val_inputs = val_data[0]
+        val_outputs = val_data[1]
+        try:
+            val_inputs.shape[0]
+        except:
+            raise TypeError(f"Val inputs must be a 2-d numpy array, not a {type(val_inputs)}")
+        try:
+            val_outputs.shape[0]
+        except:
+            raise TypeError(f"Val outputs must be a 2-d numpy array, not a {type(val_outputs)}")
+
+        if len(val_inputs.shape) !=2 or len(val_outputs.shape) != 2:
+            raise ValueError((f"Val inputs and val outputs must be 2-d numpy array. "
+                              "Val input shpae is {val_inputs.shape} and val_outputs "
+                              f"shape is {val_outputs.shape}"))
+
+        if val_inputs.shape[1] != self.shape[0] or val_outputs.shape[1] != self.shape[-1]:
+            raise ValueError(("Size of either val input or val output does not much architcture shape. "
+                              f"Val nput has size {val_inputs.shape[0]}, val_outputs has size "
+                              f" {val_outputs.shape[0]} "
+                              f"and architecture shape is {self.shape}"))
+
+        if val_inputs.shape[0] != val_outputs.shape[0]:
+            raise ValueError(("The number of batched val_inputs does not match "
+                              "the number of batched val_outputs."
+                              f" Input batch size is {val_inputs.shape[1]} "
+                              f"and output batch size is {val_outputs.shape[1]}"))
+
 
     def _setup_architecture(self):
         if not isinstance(self.shape, tuple) and  len(self.shape) < 2:
@@ -213,21 +257,39 @@ class MLP():
         self._set_hidden_act(
             kwargs.get("hidden_activation", self.hidden_activation)
             )
-        self.eta        = kwargs.get("eta", self.eta)
-        self.weight_init = kwargs.get("weight_init", self.weight_init)
-        self.batch_size  = kwargs.get("batch_size", self.batch_size)
-        self.num_epochs = kwargs.get("num_epochs", self.num_epochs)
+        self.eta            = kwargs.get("eta", self.eta)
+        self.weight_init    = kwargs.get("weight_init", self.weight_init)
+        self.batch_size     = kwargs.get("batch_size", self.batch_size)
+        self.num_epochs     = kwargs.get("num_epochs", self.num_epochs)
         self.progress_epoch = kwargs.get("progress_epoch", self.progress_epoch)
+        self.track_epoch    = kwargs.get("track_epoch", self.track_epoch)
+        self.optimization   = kwargs.get("optimization", self.optimization)
+        val_data            = kwargs.get("val_data", None)
 
         self._check_valid_data(inputs, outputs)
+
+        if self.track_epoch and val_data is not None:
+            self._check_valid_val_data(val_data)
 
         self._check_valid_attributes(inputs.shape[0])
 
         inputs_T = inputs.T
         outputs_T = outputs.T
 
+        if self.track_epoch:
+            if val_data is not None:
+                inputs_val_T = val_data[0].T
+                outputs_val_T = val_data[1].T
+                self._epoch_perf_val = np.zeros(self.num_epochs, dtype=float)
+            else:
+                self._epoch_perf_val = None
+            self._epoch_perf = np.zeros(self.num_epochs, dtype=float)
+        else:
+            self._epoch_perf = None
 
+        self._weights_epoch = []
         for i in range(self.num_epochs):
+            self._weights_epoch.append(deepcopy(self.weights))
             batched = 0
             while batched < len(inputs):
                 batched_next = batched + self.batch_size
@@ -240,8 +302,26 @@ class MLP():
                 print(f"Epoch : {i-1}")
                 ave_loss = sum(self.loss_fn[self.loss](batch_yhat, batch_out))/self.batch_size
                 print(f"Ave. Loss : {ave_loss}")
-
+            if self.track_epoch:
+                epoch_yhat = self._forward(inputs_T)
+                self._epoch_perf[i] = sum(self.loss_fn[self.loss](
+                    epoch_yhat, outputs_T))/inputs_T.shape[1]
+                if val_data is not None:
+                    epoch_yhat_val = self._forward(inputs_val_T)
+                    self._epoch_perf_val[i] = sum(self.loss_fn[self.loss](
+                        epoch_yhat_val, outputs_val_T))/inputs_val_T.shape[1]
+        self._weights_epoch.append(deepcopy(self.weights))
         return
+
+
+    def set_weights(self, epoch):
+        self.weights = self._weights_epoch[epoch]
+        return
+
+    def get_epoch_performance(self):
+        if self._epoch_perf is None:
+            raise ValueError("Epoch performarnce was not tracked")
+        return self._epoch_perf, self._epoch_perf_val
 
 
     def _forward(self, inputs):
@@ -295,7 +375,9 @@ class MLP():
         dlda = wprev.T.dot(dldy)
         dldo = np.multiply(dlda, dado)
 
-        self.weights[level] = self.weights[level] - self.eta * dldw
+        self.weights[level] = self.optimization_func[self.optimization(
+            self.weights[level], dldw, self.eta
+            )
 
         level -= 1
         #for level in range(-2, -len(self.shape)+1, -1):
@@ -310,13 +392,17 @@ class MLP():
             dlda = wprev.T.dot(dldo)
             dldo = np.multiply(dlda, dado)
 
-            self.weights[level] = self.weights[level] - self.eta * dldw
+            self.weights[level] = self.optimization_func[self.optimization(
+            self.weights[level], dldw, self.eta
+            )
 
             level -= 1
 
         next_in = self._add_bias(inputs)
         dldw = dldo.dot(next_in.T)
-        self.weights[level] = self.weights[level] - self.eta * dldw
+        self.weights[level] = self.optimization_func[self.optimization(
+            self.weights[level], dldw, self.eta
+            )
 
         return
 

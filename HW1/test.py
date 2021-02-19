@@ -8,7 +8,10 @@ iris_types = {"Setosa": 0,
               "Versicolor": 1
               }
 
-nn = mlp.MLP(shape=(4,3,5,3), batch_size=1, loss="mse", num_epochs=1000, eta=0.01)
+nn = mlp.MLP(shape=(4,3,5,3), batch_size=50, \
+             activation="linear", loss="hinge",\
+             num_epochs=1000, eta=0.01, \
+             progress_epoch=1, weight_init="zero")
 
 
 def get_outputs(op):
@@ -35,7 +38,7 @@ def get_inputs(ret, ip):
             ret[i, j] = ip[i][j]
     return ret
 
-with open("iris.csv", "r") as f:
+with open("iris/iris.csv", "r") as f:
     rl = f.readlines()[1:]
     lines = read_csv(rl)
     inputs = np.zeros((len(lines), len(lines[0])-1), dtype=float)
@@ -52,7 +55,8 @@ np.random.shuffle(indices)
 in_shuffled = inp[indices]
 out_shuffled = out[indices]
 
-nn.train(in_shuffled, out_shuffled)
+breakpoint()
+nn.train(in_shuffled, out_shuffled, track_epoch=True)
 
 predictions = nn.predict(in_shuffled, out_shuffled)
 
