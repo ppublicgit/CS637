@@ -3,10 +3,48 @@ from copy import deepcopy
 
 
 class MLP():
-    """Multi Layer Perceptron"""
+    """Multi Layer Perceptron
+
+    API Class to allow control of a neural network
+    """
 
     def __init__(self, shape, **kwargs):
-        self.shape              = shape#kwargs.get("shape", None)
+        """MLP Class constructor.
+
+        The attributes for the class can either be set here or set in the
+        call to train.
+
+        Shape must be a tuple of size 2 or greater. The first value is
+        the input size for input layer and the final value is the output
+        size for the output layer. Any values inbetween the first and last
+        are teh number of nodes in the hidden layers.
+
+        Activation is a string for the activation function to use on the hidden
+        later.
+
+        Hidden_activation is either a list or string. If it is a string then it
+        is the activation function to use for every hidden layer. If it is a list
+        then it is a list of strings to specify the activation function for each
+        individual hidden layer.
+
+        Eta is the learning rate for the optimization function to learn the weights.
+
+        Batch_size is the batch size for batched gradient descent.
+
+        Loss is a string for the loss function to use.
+
+        Num epochs is the number of epochs to use for learning.
+
+        Progress epoch is the number of epochs at which to output a message update
+        for the current network's loss.
+
+        Track_epoch is a boolean to flag whether to store the weights of the network
+        at every epoch.
+
+        Optimization is a string to choose the optimization function for learning
+        the best weights.
+        """
+        self.shape              = shape
         self.activation         = kwargs.get("activation", "sigmoid")
         self.hidden_activation  = kwargs.get("hidden_activation", "sigmoid")
         self.eta                = kwargs.get("eta", 0.0001)
@@ -55,6 +93,8 @@ class MLP():
 
 
     def _relu(self, arr, deriv=False):
+        """Relu activation function
+        """
         ret = np.zeros_like(arr, dtype=float)
         for i in range(arr.shape[0]):
             for j in range(arr.shape[1]):
@@ -66,6 +106,8 @@ class MLP():
 
 
     def _softmax(self, yhat, y, deriv=False):
+        """Softmax loss function
+        """
         #breakpoint()
         summed_prob = np.sum(np.exp(yhat), axis=0)
         if not deriv:
@@ -89,6 +131,8 @@ class MLP():
 
 
     def _hinge(self, yhat, y):
+        """hinge loss function
+        """
         ret = np.zeros(y.shape[1], dtype=float)
         for j in range(y.shape[1]):
             loss = 0
@@ -101,6 +145,8 @@ class MLP():
 
 
     def _hinge_deriv(self, yhat, y):
+        """Derivative of hinge loss
+        """
         dldyhat = np.zeros_like(yhat, dtype=float)
         for j in range(y.shape[1]):
             count = 0
@@ -114,6 +160,8 @@ class MLP():
         return dldyhat
 
     def _check_valid_attributes(self, data_size):
+        """Check to make sure attribute values are valid for the network
+        """
         if self.activation not in self.act_funcs.keys():
             raise ValueError((f"Invalid activation passed : {self.activation}. "
                               f"Activation must be one of {self.act_funcs.keys()}"))
@@ -149,6 +197,9 @@ class MLP():
             raise ValueError(f"Invalid optimaztion method set ({self.optimization}).")
 
     def _check_valid_data(self, inputs, outputs):
+        """Check to make sure the input and output data is correctly formed
+        and matches the shape of the neural network.
+        """
         try:
             inputs.shape[0]
         except:
@@ -175,6 +226,9 @@ class MLP():
 
 
     def _check_valid_val_data(self, val_data):
+        """Check to make sure teh validation data is in a valid shape and matches
+        the shape of the neural network.
+        """
         if len(val_data) != 2:
             raise ValueError((f"Size of val data is not 2. Must be an iterable of size 2 "
                              f"with the first value a 2-d numpy array of inputs and the second"
@@ -209,6 +263,11 @@ class MLP():
 
 
     def _setup_architecture(self):
+        """Setup the neural network's architcecture
+
+        Initialize the neural network structure to be used for weights and
+        hidden layers
+        """
         if not isinstance(self.shape, tuple) and  len(self.shape) < 2:
             raise ValueError((f"Invalid shape attribute passed : {self.shape} of type {type(self.shape)}"
                               "Shape attribute of MLP must be of type tuple and size of 2 or greater. "
@@ -226,16 +285,24 @@ class MLP():
 
 
     def _add_bias(self, inputs):
+        """Add the bias nodes to the inputs
+        """
         bias = np.ones((1, inputs.shape[1]), dtype=float)
         return np.concatenate((bias, inputs), axis=0)
 
 
     def _activate(self, level):
+        """Activate the the level given.
+        """
         act_fn = self.act_funcs[self.hidden_activation[level]]
         return act_fn(self.hidden_layers[level])
 
 
     def _set_hidden_act(self, ha):
+        """Set the hidden activation function for each layer.
+
+        Also checks for valid input of hidden activation.
+        """
         if isinstance(ha, str):
             self.hidden_activation = [ha] * (len(self.shape)-2)
         elif len(ha) != len(self.shape) - 2:
@@ -251,8 +318,17 @@ class MLP():
 
 
     def train(self, inputs, outputs, **kwargs):
+        """Call to train the network.
 
-        #self.shape      = kwargs.get("shape", self.shape)
+        Must pass inputs and outputs as 2-d numpy arrays where the first.
+        Inputs as nxm and outputs as nxk where m is the number of input nodes,
+        k is the number of outputs nodes and n is the number of different
+        observations.
+
+        val_data is an optional keyword arg to also use validation data. Must
+        match the input and output node sizes just like the inputs and outputs
+        variables.
+        """
         self.activation = kwargs.get("activation", self.activation)
         self._set_hidden_act(
             kwargs.get("hidden_activation", self.hidden_activation)
@@ -266,6 +342,7 @@ class MLP():
         self.optimization   = kwargs.get("optimization", self.optimization)
         val_data            = kwargs.get("val_data", None)
 
+        ### Attribute and data checks
         self._check_valid_data(inputs, outputs)
 
         if self.track_epoch and val_data is not None:
@@ -273,9 +350,14 @@ class MLP():
 
         self._check_valid_attributes(inputs.shape[0])
 
+
+        ### Transpose the input data to make it easier to work with and match
+        ### mathematical formulation of data where X is mxn
         inputs_T = inputs.T
         outputs_T = outputs.T
 
+        ### If trakcing epoch performance, setup attributes to store the
+        ### epoch performances
         if self.track_epoch:
             if val_data is not None:
                 inputs_val_T = val_data[0].T
@@ -287,21 +369,32 @@ class MLP():
         else:
             self._epoch_perf = None
 
+        ### Loop over the number of epoch and used batched gradient
+        ### descent to train the weights.
         self._weights_epoch = []
         for i in range(self.num_epochs):
+            # save current weights to history of weights for neural network
             self._weights_epoch.append(deepcopy(self.weights))
             batched = 0
+            # batch the input/output data for training and loop over the batches
+            # until all data has been used to train
             while batched < len(inputs):
+                # batch the inputs/outputs and pass the batches forward through
+                # the network and then backpropagate to train the weights
                 batched_next = batched + self.batch_size
                 batch_in = inputs_T[:, batched:batched_next]
                 batch_out = outputs_T[:, batched:batched_next]
                 batch_yhat = self._forward(batch_in)
                 self._backward(batch_yhat, batch_out, batch_in)
                 batched = batched_next
+
+            # if progress epoch then print current performance
             if self.progress_epoch and (i+1) % self.progress_epoch == 0:
                 print(f"Epoch : {i-1}")
                 ave_loss = sum(self.loss_fn[self.loss](batch_yhat, batch_out))/self.batch_size
                 print(f"Ave. Loss : {ave_loss}")
+
+            # if tracking epoch, sae performance of each epoch
             if self.track_epoch:
                 epoch_yhat = self._forward(inputs_T)
                 self._epoch_perf[i] = sum(self.loss_fn[self.loss](
@@ -315,27 +408,39 @@ class MLP():
 
 
     def set_weights(self, epoch):
+        """Set the weights for the network to the weights at a specific epoch
+        """
         self.weights = self._weights_epoch[epoch]
         return
 
     def get_epoch_performance(self):
+        """Get the epoch performances
+        """
         if self._epoch_perf is None:
             raise ValueError("Epoch performarnce was not tracked")
         return self._epoch_perf, self._epoch_perf_val
 
 
     def _forward(self, inputs):
+        """Forward pass the inputs and return the network's outputs
+        """
+        # setup inputs and add bias nodes
         next_in = inputs
         next_in = self._add_bias(next_in)
+        # iterate through the layers of the network
+        # dotting weights with input nodes and then activating
+        # and progressing through the neaural network
         for level in range(len(self.shape) - 1):
-            weights = self.weights[level]#.reshape(next_in.shape[1], self.shape[level+1])
+            # get the weights for the given layer
+            weights = self.weights[level]
+            # if hidden layer
             if level != len(self.shape)- 2:
                 self.hidden_layers[level] = weights.dot(next_in)
                 self.hidden_layers_act[level] = self._activate(level)
                 next_in = self.hidden_layers_act[level]
                 next_in = self._add_bias(self.hidden_layers_act[level])
+            # if output layer
             else:
-                #outputs = self._classify(weights.dot(next_in))
                 outputs = weights.dot(next_in)
                 out_act = self.act_funcs[self.activation](outputs)
 
@@ -343,6 +448,8 @@ class MLP():
 
 
     def _classify(self, arr):
+        """Classify the output nodes. Sets largest node to 1 and rest to 0
+        """
         out = np.zeros_like(arr)
         for j in range(arr.shape[1]):
             cmax = arr[0, j]
@@ -355,33 +462,46 @@ class MLP():
         return out
 
     def _backward(self, yhat, y, inputs):
-        #loss = self.loss_fn[self.loss](yhat, y)
+        """Backward propagation through network and update weights
+        """
+        # get the derivative of loss with respect to outputs
         dldy = self.loss_fn_derivs[self.loss](yhat, y)
+        # if no hidden layers, update final weights and return
         if len(self.hidden_layers) == 0:
             next_in = self._add_bias(inputs)
             dldwlast = dldy.dot(next_in.T)
             self.weights[-1] = self.weights[-1] - self.eta * dldwlast
             return
 
+        # start from last hidden layer and propagate back to input layer
         level = -1
         next_in = self._add_bias(self.hidden_layers_act[level])
+        # get the derivative of loss with respect  to the last layers weights
         dldw = dldy.dot(next_in.T)
 
+        # save the layers' weights before updating them
         wprev = self.weights[level][:, 1:]
+        # get derivative of the activation function with respect to
+        # the layers nodes
         dado = self.act_funcs_derivs[self.hidden_activation[level]](
             self.hidden_layers_act[level]
         )
-        #dadz = self._add_bias(dadz)
+        # get the derivative of loss with respect to the layers activation
         dlda = wprev.T.dot(dldy)
+        # multiply element-wise the two derivatives
         dldo = np.multiply(dlda, dado)
 
-        self.weights[level] = self.optimization_func[self.optimization(
+        # update the layers weights using the set optimization function
+        self.weights[level] = self.optimization_func[self.optimization](
             self.weights[level], dldw, self.eta
             )
 
+        # decrement one layer previous
         level -= 1
-        #for level in range(-2, -len(self.shape)+1, -1):
+        # check that layer is still a hidden layer
         while level != -len(self.shape) + 1:
+            # iterate through the layers following above pattern until
+            # input layer reached
             next_in = self._add_bias(self.hidden_layers_act[level])
             dldw = dldo.dot(next_in.T)
 
@@ -392,15 +512,16 @@ class MLP():
             dlda = wprev.T.dot(dldo)
             dldo = np.multiply(dlda, dado)
 
-            self.weights[level] = self.optimization_func[self.optimization(
-            self.weights[level], dldw, self.eta
+            self.weights[level] = self.optimization_func[self.optimization](
+                self.weights[level], dldw, self.eta
             )
 
             level -= 1
 
+        # input layer reached. Finsih the backpropagation and return
         next_in = self._add_bias(inputs)
         dldw = dldo.dot(next_in.T)
-        self.weights[level] = self.optimization_func[self.optimization(
+        self.weights[level] = self.optimization_func[self.optimization](
             self.weights[level], dldw, self.eta
             )
 
@@ -408,6 +529,8 @@ class MLP():
 
 
     def predict(self, inputs, outputs):
+        """Predict outputs based on inputs (perform just the forward pass)
+        """
         predictions = np.zeros_like(outputs)
         for i in range(outputs.shape[0]):
             predict = self._classify(self._forward(inputs[i].reshape(inputs.shape[1], 1)))
@@ -416,6 +539,8 @@ class MLP():
 
 
     def score(self, predictions, targets):
+        """Score the predictions versus targets for multinomial classification
+        """
         correct = 0
         for i in range(predictions.shape[0]):
             if any(predictions[i] != targets[i]):
