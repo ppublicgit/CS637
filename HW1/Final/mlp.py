@@ -363,11 +363,16 @@ class MLP():
                 inputs_val_T = val_data[0].T
                 outputs_val_T = val_data[1].T
                 self._epoch_perf_val = np.zeros(self.num_epochs, dtype=float)
+                self._epoch_acc_val = np.zeros(self.num_epochs, dtype=float)
             else:
                 self._epoch_perf_val = None
             self._epoch_perf = np.zeros(self.num_epochs, dtype=float)
+            self._epoch_acc = np.zeros(self.num_epochs, dtype=float)
         else:
             self._epoch_perf = None
+            self._epoch_perf_val = None
+            self._epoch_acc = None
+            self._epoch_acc_val = None
 
         ### Loop over the number of epoch and used batched gradient
         ### descent to train the weights.
@@ -399,10 +404,12 @@ class MLP():
                 epoch_yhat = self._forward(inputs_T)
                 self._epoch_perf[i] = sum(self.loss_fn[self.loss](
                     epoch_yhat, outputs_T))/inputs_T.shape[1]
+                self._epoch_acc[i] = self.score(epoch_yhat, outputs_T)
                 if val_data is not None:
                     epoch_yhat_val = self._forward(inputs_val_T)
                     self._epoch_perf_val[i] = sum(self.loss_fn[self.loss](
                         epoch_yhat_val, outputs_val_T))/inputs_val_T.shape[1]
+                    self._epoch_acc_val[i] = self.score(epoch_yhat_val, output_val_T)
         self._weights_epoch.append(deepcopy(self.weights))
         return
 
@@ -414,12 +421,19 @@ class MLP():
         return
 
     def get_epoch_performance(self):
-        """Get the epoch performances
+        """Get the epoch loss performances
         """
         if self._epoch_perf is None:
             raise ValueError("Epoch performarnce was not tracked")
         return self._epoch_perf, self._epoch_perf_val
 
+
+    def get_epoch_accuracy(self):
+        """Get the epoch accuracy performances
+        """
+        if self._epoch_acc is None:
+            raise ValueError("Epoch performarnce was not tracked")
+        return self._epoch_acc, self._epoch_acc_val
 
     def _forward(self, inputs):
         """Forward pass the inputs and return the network's outputs
