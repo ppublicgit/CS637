@@ -402,14 +402,16 @@ class MLP():
             # if tracking epoch, sae performance of each epoch
             if self.track_epoch:
                 epoch_yhat = self._forward(inputs_T)
+                epoch_predict = self.predict(inputs, outputs)
                 self._epoch_perf[i] = sum(self.loss_fn[self.loss](
                     epoch_yhat, outputs_T))/inputs_T.shape[1]
-                self._epoch_acc[i] = self.score(epoch_yhat, outputs_T)
+                self._epoch_acc[i] = self.score(epoch_predict, outputs)
                 if val_data is not None:
                     epoch_yhat_val = self._forward(inputs_val_T)
+                    epoch_predict_val = self.predict(val_data[0], val_data[1])
                     self._epoch_perf_val[i] = sum(self.loss_fn[self.loss](
                         epoch_yhat_val, outputs_val_T))/inputs_val_T.shape[1]
-                    self._epoch_acc_val[i] = self.score(epoch_yhat_val, output_val_T)
+                    self._epoch_acc_val[i] = self.score(epoch_predict_val, val_data[1])
         self._weights_epoch.append(deepcopy(self.weights))
         return
 
