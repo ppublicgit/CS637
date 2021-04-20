@@ -122,14 +122,14 @@ class RNN():
             loss += -np.log(P[i][targets[i],0])
 
         dWs = []
-        dWhy = np.zeros_like(self.weights[-1])
+        dWy = np.zeros_like(self.weights[-1])
         dBy = np.zeros_like(self.biases[-1])
-        dWhhs = []
+        dWhs = []
         dBhs  = []
         dHnexts = []
 
         for i in range(len(self.weights_hidden)):
-            dWhhs.append(np.zeros_like(self.weights_hidden[i]))
+            dWhs.append(np.zeros_like(self.weights_hidden[i]))
             dBhs.append(np.zeros_like(self.biases[i]))
             dHnexts.append(np.zeros_like(Hs[i][0]))
 
@@ -139,7 +139,7 @@ class RNN():
         for i in reversed(range(len(inputs))):
             dY = np.copy(P[i])
             dY[targets[i]] -= 1
-            dWhy += dY.dot(Hs[-1][i].T)
+            dWy += dY.dot(Hs[-1][i].T)
             dBy += dY
             dNext = dY
 
@@ -147,42 +147,46 @@ class RNN():
                 dH = self.weights[j+1].T.dot(dNext) + dHnexts[j]
                 dHraw = (1 - Hs[j][i] * Hs[j][i]) * dH
                 dBhs[j] += dHraw
-                dWhhs[j] += dHraw.dot(Hs[j][i-1].T)
+                dWhs[j] += dHraw.dot(Hs[j][i-1].T)
                 dHnexts[j] = self.weights_hidden[j].T.dot(dHraw)
-            dWxh += dHraw.dot(X[i].T)
+
+                if j != 0:
+                    dWs[j]+= dHraw.dot(Hs[j][i].T)
+
+            dWs[0] += dHraw.dot(X[i].T)
 
         # clip to solve gradient explosion
-        for grad in [dWxh, dWhy, dBy]:
+        dWs = dWs + [dWy]
+        dBs = dBhs + [dBy]
+        for grad in dWs:
             np.clip(grad, -5, 5, out=grad)
-        for grad in dBhs:
+        for grad in dBs:
             np.clip(grad, -5, 5, out=grad)
-        for grad in dWhhs:
+        for grad in dWhs:
             np.clip(grad, -5, 5, out=grad)
 
         for i in range(len(Hs)):
             self.hidden_previous[i] = deepcopy(Hs[i][len(inputs)-1])
 
 
-        self.update_network(dWs, dWhhs, dWhy, dBhs, dBy)
+        self.update_network(dWs, dWhs, dBs)
 
         return loss
 
 
-    def update_network(self, dWxh, dWhhs, dWhy, dBhs, dBy):
+    def update_network(self, dWs, dWhs, dBs):
 
-        derivatives = dWs + [dWhy]
         for i in range(len(self.weights)):
-            self.memories[i] += derivatives[i] * derivatives[i]
-            self.weights[i] += -self.learning_rate * derivatives[i] / np.sqrt(self.memories[i] + 1e-8)
+            self.memories[i] += dWs[i] * dWs[i]
+            self.weights[i] += -self.learning_rate * dWs[i] / np.sqrt(self.memories[i] + 1e-8)
 
         for i in range(len(self.weights_hidden)):
-            self.memories_hidden[i] += dWhhs[i] * dWhhs[i]
-            self.weights_hidden[i] += -self.learning_rate * dWhhs[i] / np.sqrt(self.memories_hidden[i] + 1e-8)
+            self.memories_hidden[i] += dWhs[i] * dWhs[i]
+            self.weights_hidden[i] += -self.learning_rate * dWhs[i] / np.sqrt(self.memories_hidden[i] + 1e-8)
 
-        derivatives = dBhs + [dBy]
         for i in range(len(self.biases)):
-            self.memories_biases[i] += derivatives[i] * derivatives[i]
-            self.biases[i] += -self.learning_rate * derivatives[i] / np.sqrt(self.memories_biases[i] + 1e-8)
+            self.memories_biases[i] += dBs[i] * dBs[i]
+            self.biases[i] += -self.learning_rate * dBs[i] / np.sqrt(self.memories_biases[i] + 1e-8)
 
 
     def _forward(self, inputs, hidden_in):
@@ -228,5 +232,5 @@ class RNN():
 if __name__ == "__main__":
     data = open('input.txt', 'r').read() # should be simple plain text file
 
-    rnn = RNN((100,))
+    rnn = RNN((100, 100))
     rnn.train(data)
