@@ -4,14 +4,15 @@ BSD License
 """
 import numpy as np
 
+np.random.seed(42)
+
 # data I/O
 data = open('input.txt', 'r').read() # should be simple plain text file
-chars = list(set(data))
+chars = sorted(list(set(data)))
 data_size, vocab_size = len(data), len(chars)
 print('data has %d characters, %d unique.' % (data_size, vocab_size))
 char_to_ix = { ch:i for i,ch in enumerate(chars) }
 ix_to_char = { i:ch for i,ch in enumerate(chars) }
-breakpoint()
 # hyperparameters
 hidden_size = 100 # size of hidden layer of neurons
 seq_length = 25 # number of steps to unroll the RNN for
@@ -58,6 +59,8 @@ def lossFun(inputs, targets, hprev):
     dhnext = np.dot(Whh.T, dhraw)
   for dparam in [dWxh, dWhh, dWhy, dbh, dby]:
     np.clip(dparam, -5, 5, out=dparam) # clip to mitigate exploding gradients
+
+
   return loss, dWxh, dWhh, dWhy, dbh, dby, hs[len(inputs)-1]
 
 def sample(h, seed_ix, n):
@@ -90,16 +93,11 @@ while True:
   inputs = [char_to_ix[ch] for ch in data[p:p+seq_length]]
   targets = [char_to_ix[ch] for ch in data[p+1:p+seq_length+1]]
 
-  # sample from the model now and then
-  if n % 100 == 0:
-    sample_ix = sample(hprev, inputs[0], 200)
-    txt = ''.join(ix_to_char[ix] for ix in sample_ix)
-    print('----\n %s \n----' % (txt, ))
 
   # forward seq_length characters through the net and fetch gradient
+
   loss, dWxh, dWhh, dWhy, dbh, dby, hprev = lossFun(inputs, targets, hprev)
   smooth_loss = smooth_loss * 0.999 + loss * 0.001
-  if n % 100 == 0: print('iter %d, loss: %f' % (n, smooth_loss)) # print progress
 
   # perform parameter update with Adagrad
   for param, dparam, mem in zip([Wxh, Whh, Why, bh, by],
@@ -109,4 +107,12 @@ while True:
     param += -learning_rate * dparam / np.sqrt(mem + 1e-8) # adagrad update
 
   p += seq_length # move data pointer
+  if n % 1000 == 0:
+      breakpoint()
+      print('iter %d, loss: %f' % (n, smooth_loss)) # print progress
+      sample_ix = sample(hprev, inputs[0], 200)
+      txt = ''.join(ix_to_char[ix] for ix in sample_ix)
+      print('----\n %s \n----' % (txt, ))
+
+
   n += 1 # iteration counter

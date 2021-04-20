@@ -1,6 +1,7 @@
 import numpy as np
 from copy import deepcopy
 
+np.random.seed(42)
 
 class RNN_VANILLA:
     def __init__(self, **kwargs):
@@ -8,9 +9,9 @@ class RNN_VANILLA:
         self.alphabet = None
         self.alphabet2idx = {}
         self.idx2alphabet = {}
-        self.num_hidden = kwargs.get("num_hidden", 1000)
-        self.seq_length = kwargs.get("seq_length", 50)
-        self.learning_rate = kwargs.get("learning_rate", 1e-3)
+        self.num_hidden = kwargs.get("num_hidden", 100)
+        self.seq_length = kwargs.get("seq_length", 25)
+        self.learning_rate = kwargs.get("learning_rate", 1e-1)
 
         self.Wxh             = None
         self.Whh             = None
@@ -35,7 +36,7 @@ class RNN_VANILLA:
 
 
     def train(self, data):
-        self.alphabet = list(set(data))
+        self.alphabet = sorted(list(set(data)))
         for idx, char in enumerate(self.alphabet):
             self.alphabet2idx[char] = idx
             self.idx2alphabet[idx] = char
@@ -55,12 +56,13 @@ class RNN_VANILLA:
             inputs = [self.alphabet2idx[char] for char in data[seq:seq+self.seq_length]]
             targets = [self.alphabet2idx[char] for char in data[seq+1:seq+self.seq_length+1]]
 
-            loss = self.backward(inputs, targets)
 
+            back_loss = self.backward(inputs, targets)
+            loss = self.losses[-1] * 0.999 + back_loss * 0.001
             self.losses.append(loss)
 
-            seq += 1
-            if i % 100 == 0:
+            seq += self.seq_length
+            if i % 1000 == 0:
                 print(f"iter {i}, loss: {loss}")
                 gen = self.generate(self.idx2alphabet[inputs[0]], 200)
                 print('----\n %s \n----' % (gen, ))
@@ -73,7 +75,7 @@ class RNN_VANILLA:
         # activate hidden layer
         hidden_act = np.tanh(hidden)
         # pass hidden layer through to output layer
-        output = np.dot(self.Why, hidden_act) + self.By
+        output = self.Why.dot(hidden_act) + self.By
         # activate (normalize) outputs
         output_norm = np.exp(output) / np.sum(np.exp(output))
         return hidden_act, output, output_norm
@@ -97,7 +99,7 @@ class RNN_VANILLA:
         dBh, dBy = np.zeros_like(self.Bh), np.zeros_like(self.By)
         dHnext = np.zeros_like(H[0])
 
-        for i in [*range(len(inputs))][::-1]:
+        for i in reversed(range(len(inputs))):#[*range(len(inputs))][::-1]:
             dY = np.copy(P[i])
             dY[targets[i]] -= 1
             dWhy += dY.dot(H[i].T)
@@ -113,43 +115,39 @@ class RNN_VANILLA:
         for grad in [dWxh, dWhh, dWhy, dBh, dBy]:
             np.clip(grad, -5, 5, out=grad)
 
-        self.hidden_previous = H[len(inputs)-1]
 
-        self.update_network(dWxh, dWhh, dWhy, dBh, dBy, dHnext)
+        self.hidden_previous = deepcopy(H[len(inputs)-1])
+
+
+        self.update_network(dWxh, dWhh, dWhy, dBh, dBy)
 
         return loss
 
-
-    def update_node(self, node, derivative, memory):
-        mem = derivative * node
-        return -self.learning_rate * derivative / np.sqrt(mem + 1e-8)
-
-
-    def update_network(self, dWxh, dWhh, dWhy, dBh, dBy, dHnext):
-        breakpoint()
-        self.Wxh += self.update_node(self.Wxh, dWxh, self.mWxh)
-        self.Whh += self.update_node(self.Whh, dWhh, self.mWhh)
-        self.Why += self.update_node(self.Why, dWhy, self.mWhy)
-        self.Bh  += self.update_node(self.Bh, dBh, self.mBh)
-        self.By  += self.update_node(self.By, dBy, self.mBy)
+    def update_network(self, dWxh, dWhh, dWhy, dBh, dBy):
+        #
+        for node, derivative, memory in zip([self.Wxh, self.Whh, self.Why, self.Bh, self.By],
+                                            [dWxh, dWhh, dWhy, dBh, dBy],
+                                            [self.mWxh, self.mWhh, self.mWhy, self.mBh, self.mBy]):
+            memory += derivative * derivative
+            node += -self.learning_rate * derivative / np.sqrt(memory + 1e-8)
 
 
     def generate(self, char, num_chars):
-        first_char_idx = self.alphabet2idx[char]
+        prev_char_idx = self.alphabet2idx[char]
         X = np.zeros((len(self.alphabet), 1))
-        X[first_char_idx] = 1
+        X[prev_char_idx] = 1
+        hidden = self.hidden_previous
         indexes = []
         for i in range(num_chars):
-            breakpoint()
-            _, _, probability = self.forward(X, self.hidden_previous)
-            breakpoint()
+            hidden, _, probability = self.forward(X, hidden)
             next_char_idx = np.random.choice(range(len(self.alphabet)), p=probability.ravel())
-            X[first_char_idx] = 0
+            X[prev_char_idx] = 0
             X[next_char_idx] = 1
+            prev_char_idx = next_char_idx
             indexes.append(next_char_idx)
         chars = []
         for idx in indexes:
-            chars.append(idx2alphabet(idx))
+            chars.append(self.idx2alphabet[idx])
         return ''.join(chars)
 
 if __name__ == "__main__":
