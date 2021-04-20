@@ -62,10 +62,12 @@ class RNN_VANILLA:
             self.losses.append(loss)
 
             seq += self.seq_length
-            if i % 1000 == 0:
+            if i % 100 == 0:
                 print(f"iter {i}, loss: {loss}")
                 gen = self.generate(self.idx2alphabet[inputs[0]], 200)
                 print('----\n %s \n----' % (gen, ))
+                breakpoint()
+
         return
 
 
@@ -133,6 +135,7 @@ class RNN_VANILLA:
 
 
     def generate(self, char, num_chars):
+
         prev_char_idx = self.alphabet2idx[char]
         X = np.zeros((len(self.alphabet), 1))
         X[prev_char_idx] = 1

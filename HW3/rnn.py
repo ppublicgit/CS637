@@ -1,84 +1,232 @@
-#importing the libraries
 import numpy as np
-import matplotlib.pyplot as plt
+from copy import deepcopy
 
-import torch
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from torch import nn
+np.random.seed(42)
 
-print("imports worked")
+class RNN():
+    def __init__(self, shape, **kwargs):
+        self.shape              = shape
+        self.activation         = kwargs.get("activation", "tanh")
+        self.learning_rate      = kwargs.get("learning_rate", 1e-1)
+        self.weight_init        = kwargs.get("weight_init", "rnn")
+        self.num_epochs         = kwargs.get("num_epochs", 10000)
+        self.progress_epoch     = kwargs.get("progress_epoch", 100)
+        self.track_epoch        = kwargs.get("track_epoch", False)
+        self.seq_length         = kwargs.get("seq_length", 25)
 
-#creating the dataset
-x = np.arange(1,721,1)
-y = np.sin(x*np.pi/180)  + np.random.randn(720)*0.05
-plt.plot(y)
+        self.alphabet           = None
+        self.alphabet2idx       = {}
+        self.idx2alphabet       = {}
 
-# structuring the data
-X = []
-Y = []
-for i in range(0,710):
-     list1 = []
-     for j in range(i,i+10):
-         list1.append(y[j])
-     X.append(list1)
-     Y.append(y[j+1])
+        self.weights            = []
+        self.weights_hidden     = []
+        self.hidden_layers      = []
+        self.hidden_layers_act  = []
+        self.hidden_previous    = []
+        self.biases             = []
+        self.memories           = []
+        self.memories_hidden    = []
+        self.memories_biases    = []
 
+        self.act_funcs          = {"tanh": lambda x : np.tanh(x)
+        }
 
-#train test split
-X = np.array(X)
-Y = np.array(Y)
-x_train = X[:360]
-x_test = X[360:]
-y_train = Y[:360]
-y_test = Y[360:]
-
-
-class timeseries(Dataset):
-    def __init__(self,x,y):
-        self.x = torch.tensor(x,dtype=torch.float32)
-        self.y = torch.tensor(y,dtype=torch.float32)
-        self.len = x.shape[0]
-
-    def __getitem__(self,idx):
-        return self.x[idx],self.y[idx]
-
-    def __len__(self):
-        return self.len
-
-dataset = timeseries(x_train,y_train)
-train_loader = DataLoader(dataset,shuffle=True,batch_size=256)
-
-class neural_network(nn.Module):
-    def __init__(self):
-        super(neural_network,self).__init__()
-        self.lstm = nn.LSTM(input_size=1,hidden_size=5,num_layers=1,batch_first=True)
-        self.fc1 = nn.Linear(in_features=5,out_features=1)
-
-    def forward(self,x):
-        output,_status = self.lstm(x)
-        output = output[:,-1,:]
-        output = self.fc1(torch.relu(output))
-        return output
-
-model = neural_network()
-
-criterion = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(),lr=0.0001)
-epochs = 1500
-
-for i in range(epochs):
-    for j,data in enumerate(train_loader):
-        y_pred = model(data[:][0].view(-1,10,1)).reshape(-1)
-        loss = criterion(y_pred,data[:][1])
-        loss.backward()
-        optimizer.step()
-    if i%50 == 0:
-        print(i,"th iteration : ",loss)
+        self.init_weight_funcs  =  {"random" : lambda x, y : np.random.normal(0, 1, ((x+1), y)),
+                                    "rnn" : lambda x,y : np.random.randn(x, y) * 0.01,
+                                    "zero" : lambda x, y : np.zeros((x+1, y), dtype=float)}
 
 
-test_set = timeseries(x_test,y_test)
-test_pred = model(test_set[:][0].view(-1,10,1)).view(-1)
-plt.plot(test_pred.detach().numpy(),label='predicted')
-plt.plot(test_set[:][1].view(-1),label='original')
-plt.legend()
+    def _setup_architecture(self):
+        """Setup the neural network's architcecture
+
+        Initialize the neural network structure to be used for weights and
+        hidden layers
+        """
+
+        self.shape = (len(self.alphabet),) + self.shape + (len(self.alphabet),)
+
+        for i in range(len(self.shape)-2):
+            self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[i+1], self.shape[i]))
+            self.weights_hidden.append(self.init_weight_funcs[self.weight_init](self.shape[i+1], self.shape[i+1]))
+            self.hidden_layers.append(None)
+            self.hidden_layers_act.append(None)
+            self.biases.append(np.zeros((self.shape[i+1], 1)))
+            self.hidden_previous.append(np.zeros((self.shape[i+1], 1)))
+
+        self.weights.append(self.init_weight_funcs[self.weight_init](self.shape[-1], self.shape[-2]))
+        self.biases.append(np.zeros((self.shape[-1], 1)))
+
+        for i in range(len(self.weights)):
+            self.memories.append(np.zeros_like(self.weights[i]))
+        for i in range(len(self.weights_hidden)):
+            self.memories_hidden.append(np.zeros_like(self.weights_hidden[i]))
+        for i in range(len(self.biases)):
+            self.memories_biases.append(np.zeros_like(self.biases[i]))
+
+
+    def train(self, data):
+        self.alphabet = sorted(list(set(data)))
+        for idx, char in enumerate(self.alphabet):
+            self.alphabet2idx[char] = idx
+            self.idx2alphabet[idx] = char
+
+        self._setup_architecture()
+
+        self.losses = [-np.log(1.0/len(self.alphabet)) * self.seq_length] # loss at time 0
+
+        seq = 0
+        for i in range(self.num_epochs):
+            if seq + self.seq_length + 1 >= len(data): # reset the sequencing of data
+                seq = 0
+                for i in range(len(self.shape)-2):
+                    self.hidden_previous[i] = np.zeros((self.shape(i+1), 1))
+
+            inputs = [self.alphabet2idx[char] for char in data[seq:seq+self.seq_length]]
+            targets = [self.alphabet2idx[char] for char in data[seq+1:seq+self.seq_length+1]]
+
+
+            back_loss = self._backward(inputs, targets)
+            loss = self.losses[-1] * 0.999 + back_loss * 0.001
+            self.losses.append(loss)
+
+            seq += self.seq_length
+            if i % self.progress_epoch == 0:
+                print(f"iter {i}, loss: {loss}")
+                gen = self.generate(self.idx2alphabet[inputs[0]], 200)
+                print('----\n %s \n----' % (gen, ))
+                breakpoint()
+
+
+
+    def _backward(self, inputs, targets):
+        X, Hs, Y, P = {}, [], {}, {}
+
+        for i in range(len(self.shape)-2):
+            Hs.append({})
+            Hs[i][-1] = deepcopy(self.hidden_previous[i])
+
+        loss = 0
+
+        #forward pass the to predict chars
+        for i in range(len(inputs)):
+            X[i] = np.zeros((len(self.alphabet), 1))
+            X[i][inputs[i]] = 1
+            H_input = []
+            for j in range(len(Hs)):
+                H_input.append(Hs[j][i-1])
+
+            H_output, Y[i], P[i] = self._forward(X[i], H_input)
+            for j in range(len(Hs)):
+                Hs[j][i] = H_output[j]
+
+            loss += -np.log(P[i][targets[i],0])
+
+        dWs = []
+        dWhy = np.zeros_like(self.weights[-1])
+        dBy = np.zeros_like(self.biases[-1])
+        dWhhs = []
+        dBhs  = []
+        dHnexts = []
+
+        for i in range(len(self.weights_hidden)):
+            dWhhs.append(np.zeros_like(self.weights_hidden[i]))
+            dBhs.append(np.zeros_like(self.biases[i]))
+            dHnexts.append(np.zeros_like(Hs[i][0]))
+
+        for i in range(len(self.weights)-1):
+            dWs.append(np.zeros_like(self.weights[i]))
+
+        for i in reversed(range(len(inputs))):
+            dY = np.copy(P[i])
+            dY[targets[i]] -= 1
+            dWhy += dY.dot(Hs[-1][i].T)
+            dBy += dY
+            dNext = dY
+
+            for j in reversed(range(len(self.shape)-2)):
+                dH = self.weights[j+1].T.dot(dNext) + dHnexts[j]
+                dHraw = (1 - Hs[j][i] * Hs[j][i]) * dH
+                dBhs[j] += dHraw
+                dWhhs[j] += dHraw.dot(Hs[j][i-1].T)
+                dHnexts[j] = self.weights_hidden[j].T.dot(dHraw)
+            dWxh += dHraw.dot(X[i].T)
+
+        # clip to solve gradient explosion
+        for grad in [dWxh, dWhy, dBy]:
+            np.clip(grad, -5, 5, out=grad)
+        for grad in dBhs:
+            np.clip(grad, -5, 5, out=grad)
+        for grad in dWhhs:
+            np.clip(grad, -5, 5, out=grad)
+
+        for i in range(len(Hs)):
+            self.hidden_previous[i] = deepcopy(Hs[i][len(inputs)-1])
+
+
+        self.update_network(dWs, dWhhs, dWhy, dBhs, dBy)
+
+        return loss
+
+
+    def update_network(self, dWxh, dWhhs, dWhy, dBhs, dBy):
+
+        derivatives = dWs + [dWhy]
+        for i in range(len(self.weights)):
+            self.memories[i] += derivatives[i] * derivatives[i]
+            self.weights[i] += -self.learning_rate * derivatives[i] / np.sqrt(self.memories[i] + 1e-8)
+
+        for i in range(len(self.weights_hidden)):
+            self.memories_hidden[i] += dWhhs[i] * dWhhs[i]
+            self.weights_hidden[i] += -self.learning_rate * dWhhs[i] / np.sqrt(self.memories_hidden[i] + 1e-8)
+
+        derivatives = dBhs + [dBy]
+        for i in range(len(self.biases)):
+            self.memories_biases[i] += derivatives[i] * derivatives[i]
+            self.biases[i] += -self.learning_rate * derivatives[i] / np.sqrt(self.memories_biases[i] + 1e-8)
+
+
+    def _forward(self, inputs, hidden_in):
+        hidden = []
+        hidden_act = []
+
+        hid = self.weights[0].dot(inputs) + self.weights_hidden[0].dot(hidden_in[0]) + self.biases[0]
+        hidden.append(hid)
+        hid_act = self.act_funcs[self.activation](hid)
+        hidden_act.append(hid_act)
+
+        for i in range(1, len(self.weights)-1):
+            hid = self.weights[i].dot(hidden_act[i-1]) + self.weights_hidden.dot(hidden_in[i]) + self.biases[i]
+            hidden.append(hid)
+            hid_act = self.act_funcs[self.activation](hid)
+            hidden_act.append(hid_act)
+
+        output = self.weights[-1].dot(hidden_act[-1]) + self.biases[-1]
+        output_norm = np.exp(output) / np.sum(np.exp(output))
+
+        return hidden_act, output, output_norm
+
+
+    def generate(self, char, num_chars):
+        prev_char_idx = self.alphabet2idx[char]
+        X = np.zeros((len(self.alphabet), 1))
+        X[prev_char_idx] = 1
+        Hs = self.hidden_previous
+        indexes = []
+        for i in range(num_chars):
+            Hs, _, probability = self._forward(X, Hs)
+            next_char_idx = np.random.choice(range(len(self.alphabet)), p=probability.ravel())
+            X[prev_char_idx] = 0
+            X[next_char_idx] = 1
+            prev_char_idx = next_char_idx
+            indexes.append(next_char_idx)
+        chars = []
+        for idx in indexes:
+            chars.append(self.idx2alphabet[idx])
+        return ''.join(chars)
+
+
+if __name__ == "__main__":
+    data = open('input.txt', 'r').read() # should be simple plain text file
+
+    rnn = RNN((100,))
+    rnn.train(data)
