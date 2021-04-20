@@ -94,8 +94,6 @@ class RNN():
                 print(f"iter {i}, loss: {loss}")
                 gen = self.generate(self.idx2alphabet[inputs[0]], 200)
                 print('----\n %s \n----' % (gen, ))
-                breakpoint()
-
 
 
     def _backward(self, inputs, targets):
@@ -145,6 +143,7 @@ class RNN():
 
             for j in reversed(range(len(self.shape)-2)):
                 dH = self.weights[j+1].T.dot(dNext) + dHnexts[j]
+                dNext = dH
                 dHraw = (1 - Hs[j][i] * Hs[j][i]) * dH
                 dBhs[j] += dHraw
                 dWhs[j] += dHraw.dot(Hs[j][i-1].T)
@@ -167,7 +166,6 @@ class RNN():
 
         for i in range(len(Hs)):
             self.hidden_previous[i] = deepcopy(Hs[i][len(inputs)-1])
-
 
         self.update_network(dWs, dWhs, dBs)
 
@@ -199,7 +197,7 @@ class RNN():
         hidden_act.append(hid_act)
 
         for i in range(1, len(self.weights)-1):
-            hid = self.weights[i].dot(hidden_act[i-1]) + self.weights_hidden.dot(hidden_in[i]) + self.biases[i]
+            hid = self.weights[i].dot(hidden_act[i-1]) + self.weights_hidden[i].dot(hidden_in[i]) + self.biases[i]
             hidden.append(hid)
             hid_act = self.act_funcs[self.activation](hid)
             hidden_act.append(hid_act)
@@ -232,5 +230,5 @@ class RNN():
 if __name__ == "__main__":
     data = open('input.txt', 'r').read() # should be simple plain text file
 
-    rnn = RNN((100, 100))
+    rnn = RNN((512, 512, 512))
     rnn.train(data)
